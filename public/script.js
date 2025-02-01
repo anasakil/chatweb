@@ -1,68 +1,80 @@
-const socket = io("https://chatweb-e2q1.onrender.com/"); // Update with Render URL
+const socket = io("https://chatweb-e2q1.onrender.com/"); 
 let userId = `user_${Math.random().toString(36).substring(7)}`;
 let roomId = "";
+let peerConnection;
+let localStream;
 
-// ✅ Ensure you are connected to Socket.IO
-socket.on("connect", () => {
-    console.log("Connected to server with ID:", socket.id);
-});
+// Use Xirsys STUN/TURN servers
+const iceServers = {
+    iceServers: [
+        { urls: ["stun:eu-turn5.xirsys.com"] },
+        {
+            username: "your-xirsys-username",
+            credential: "your-xirsys-credential",
+            urls: [
+                "turn:eu-turn5.xirsys.com:80?transport=udp",
+                "turn:eu-turn5.xirsys.com:3478?transport=udp",
+                "turns:eu-turn5.xirsys.com:443?transport=tcp",
+                "turns:eu-turn5.xirsys.com:5349?transport=tcp"
+            ]
+        }
+    ]
+};
 
-// ✅ Join a room
+// Join a room
 function joinRoom() {
     roomId = document.getElementById("roomId").value;
     if (roomId) {
         socket.emit("joinRoom", { userId, roomId });
-        console.log(`Joined room: ${roomId}`);
-    } else {
-        alert("Please enter a room ID!");
     }
 }
 
-// ✅ Send message
+// Send message
 function sendMessage() {
     const message = document.getElementById("message").value;
     if (roomId && message) {
         socket.emit("sendMessage", { userId, message });
         document.getElementById("message").value = "";
-        console.log(`Sent message: ${message}`);
-    } else {
-        alert("Join a room first!");
     }
 }
 
-// ✅ Receive messages (Update chat UI)
-socket.on("message", (data) => {
-    console.log("Received message:", data);
-    const chatBox = document.getElementById("chat-box");
-    const msgDiv = document.createElement("div");
+// Start Video Call
+async function startVideoCall() {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById("localVideo").srcObject = localStream;
 
-    if (data.fileUrl) {
-        msgDiv.innerHTML = `<strong>${data.sender}:</strong> <a href="${data.fileUrl}" target="_blank">Download File</a>`;
-    } else {
-        msgDiv.innerHTML = `<strong>${data.sender}:</strong> ${data.message}`;
-    }
+    peerConnection = new RTCPeerConnection(iceServers);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            socket.emit("callUser", { userToCall: roomId, signalData: event.candidate, from: userId });
+        }
+    };
+
+    peerConnection.ontrack = event => {
+        document.getElementById("remoteVideo").srcObject = event.streams[0];
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit("callUser", { userToCall: roomId, signalData: offer, from: userId });
+}
+
+// Handle Incoming Calls
+socket.on("incomingCall", async ({ signal, from }) => {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById("localVideo").srcObject = localStream;
+
+    peerConnection = new RTCPeerConnection(iceServers);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit("answerCall", { signal: answer, to: from });
 });
 
-// ✅ Handle file uploads
-async function sendFile() {
-    const fileInput = document.getElementById("fileInput");
-    const file = fileInput.files[0];
-    if (!file) return alert("Select a file first!");
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-        const response = await fetch("/upload", { method: "POST", body: formData });
-        const data = await response.json();
-
-        if (data.fileUrl) {
-            socket.emit("sendFile", { userId, fileUrl: data.fileUrl });
-        }
-    } catch (error) {
-        console.error("File upload failed:", error);
-    }
-}
+socket.on("callAccepted", async (signal) => {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+});

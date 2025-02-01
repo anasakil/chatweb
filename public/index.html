@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Room</title>
+    <title>Chat Room with Video Call</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,8 +20,9 @@
         <input type="file" id="fileInput" />
         <button onclick="sendFile()">Send File</button>
 
-        <button onclick="startCall()">Start Voice Call</button>
-        <audio id="localAudio" autoplay></audio>
+        <button onclick="startVideoCall()">Start Video Call</button>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <video id="remoteVideo" autoplay playsinline></video>
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
