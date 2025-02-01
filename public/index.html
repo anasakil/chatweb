@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <h2>Chat Room</h2>
+        <input id="roomId" type="text" placeholder="Enter Room ID..." />
+        <button onclick="joinRoom()">Join Room</button>
+        
+        <div id="chat-box"></div>
+        
+        <input id="message" type="text" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+
+        <input type="file" id="fileInput" />
+        <button onclick="sendFile()">Send File</button>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
