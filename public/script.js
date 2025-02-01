@@ -1,4 +1,4 @@
-const socket = io("https://your-render-app.onrender.com"); // Update with Render URL
+const socket = io("https://chatweb-e2q1.onrender.com/"); // Update with Render URL
 let userId = `user_${Math.random().toString(36).substring(7)}`;
 let roomId = "";
 
