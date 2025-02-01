@@ -19,6 +19,9 @@
 
         <input type="file" id="fileInput" />
         <button onclick="sendFile()">Send File</button>
+
+        <button onclick="startCall()">Start Voice Call</button>
+        <audio id="localAudio" autoplay></audio>
     </div>
     
     <script src="/socket.io/socket.io.js"></script>

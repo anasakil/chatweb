@@ -6,11 +6,16 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 // Store users and chat history in memory
-const users = {};  
-const chatRooms = {};  
+const users = {};
+const chatRooms = {};
 
 // Configure file storage
 const storage = multer.diskStorage({
@@ -29,6 +34,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
     res.json({ fileUrl: `/uploads/${req.file.filename}` });
 });
 
+// WebSocket for chat & WebRTC signaling
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
@@ -36,8 +42,7 @@ io.on("connection", (socket) => {
         socket.join(roomId);
         socket.userId = userId;
         socket.roomId = roomId;
-
-        users[userId] = socket.id;  
+        users[userId] = socket.id;
 
         // Send previous messages
         const cachedMessages = chatRooms[roomId] || [];
@@ -48,7 +53,6 @@ io.on("connection", (socket) => {
         if (!socket.roomId) return;
         const data = { sender: userId, message };
 
-        // Store in memory
         if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
 
@@ -59,17 +63,27 @@ io.on("connection", (socket) => {
         if (!socket.roomId) return;
         const data = { sender: userId, fileUrl };
 
-        // Store in memory
         if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
 
         io.to(socket.roomId).emit("message", data);
     });
 
+    // WebRTC signaling
+    socket.on("callUser", ({ userToCall, signalData, from }) => {
+        io.to(users[userToCall]).emit("incomingCall", { signal: signalData, from });
+    });
+
+    socket.on("answerCall", (data) => {
+        io.to(users[data.to]).emit("callAccepted", data.signal);
+    });
+
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
-        delete users[socket.userId];  
+        delete users[socket.userId];
     });
 });
 
-server.listen(3000, () => console.log("Server running on http://localhost:3000"));
+// Use Render’s port
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
