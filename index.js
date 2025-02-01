@@ -8,20 +8,19 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Store messages in memory (lost when server restarts)
-const chatRooms = {};
+// Store users and chat history in memory
+const users = {};  
+const chatRooms = {};  
 
-// Set up file storage
+// Configure file storage
 const storage = multer.diskStorage({
     destination: "uploads/",
     filename: (req, file, cb) => {
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
-
 const upload = multer({ storage });
 
-// Serve static files
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
@@ -33,36 +32,43 @@ app.post("/upload", upload.single("file"), (req, res) => {
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    // Join a room
-    socket.on("joinRoom", (roomId) => {
+    socket.on("joinRoom", ({ userId, roomId }) => {
         socket.join(roomId);
+        socket.userId = userId;
         socket.roomId = roomId;
-        if (!chatRooms[roomId]) chatRooms[roomId] = [];
 
-        // Send past messages
-        chatRooms[roomId].forEach((msg) => socket.emit("message", msg));
+        users[userId] = socket.id;  
+
+        // Send previous messages
+        const cachedMessages = chatRooms[roomId] || [];
+        cachedMessages.forEach((msg) => socket.emit("message", msg));
     });
 
-    // Handle messages
-    socket.on("sendMessage", ({ message }) => {
+    socket.on("sendMessage", ({ userId, message }) => {
         if (!socket.roomId) return;
-        const data = { sender: socket.id, message };
+        const data = { sender: userId, message };
 
+        // Store in memory
+        if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
+
         io.to(socket.roomId).emit("message", data);
     });
 
-    // Handle file messages
-    socket.on("sendFile", (fileUrl) => {
+    socket.on("sendFile", ({ userId, fileUrl }) => {
         if (!socket.roomId) return;
-        const data = { sender: socket.id, fileUrl };
+        const data = { sender: userId, fileUrl };
 
+        // Store in memory
+        if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
+
         io.to(socket.roomId).emit("message", data);
     });
 
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
+        delete users[socket.userId];  
     });
 });
 

@@ -1,11 +1,12 @@
 const socket = io();
+let userId = `user_${Math.random().toString(36).substring(7)}`;
 let roomId = "";
 
 // Join a room
 function joinRoom() {
     roomId = document.getElementById("roomId").value;
     if (roomId) {
-        socket.emit("joinRoom", roomId);
+        socket.emit("joinRoom", { userId, roomId });
     }
 }
 
@@ -13,7 +14,7 @@ function joinRoom() {
 function sendMessage() {
     const message = document.getElementById("message").value;
     if (roomId && message) {
-        socket.emit("sendMessage", { message });
+        socket.emit("sendMessage", { userId, message });
         document.getElementById("message").value = "";
     }
 }
@@ -31,7 +32,7 @@ async function sendFile() {
     const data = await response.json();
 
     if (data.fileUrl) {
-        socket.emit("sendFile", data.fileUrl);
+        socket.emit("sendFile", { userId, fileUrl: data.fileUrl });
     }
 }
 
