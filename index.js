@@ -34,21 +34,24 @@ app.post("/upload", upload.single("file"), (req, res) => {
     res.json({ fileUrl: `/uploads/${req.file.filename}` });
 });
 
-// WebSocket for chat & WebRTC signaling
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
+    // ✅ Join a chat room
     socket.on("joinRoom", ({ userId, roomId }) => {
         socket.join(roomId);
         socket.userId = userId;
         socket.roomId = roomId;
         users[userId] = socket.id;
 
-        // Send previous messages
+        console.log(`User ${userId} joined room ${roomId}`);
+
+        // Send previous messages (if any)
         const cachedMessages = chatRooms[roomId] || [];
         cachedMessages.forEach((msg) => socket.emit("message", msg));
     });
 
+    // ✅ Send messages
     socket.on("sendMessage", ({ userId, message }) => {
         if (!socket.roomId) return;
         const data = { sender: userId, message };
@@ -56,9 +59,11 @@ io.on("connection", (socket) => {
         if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
 
+        console.log(`Message from ${userId} in room ${socket.roomId}: ${message}`);
         io.to(socket.roomId).emit("message", data);
     });
 
+    // ✅ Handle file messages
     socket.on("sendFile", ({ userId, fileUrl }) => {
         if (!socket.roomId) return;
         const data = { sender: userId, fileUrl };
@@ -66,23 +71,17 @@ io.on("connection", (socket) => {
         if (!chatRooms[socket.roomId]) chatRooms[socket.roomId] = [];
         chatRooms[socket.roomId].push(data);
 
+        console.log(`File sent by ${userId} in room ${socket.roomId}: ${fileUrl}`);
         io.to(socket.roomId).emit("message", data);
     });
 
-    // WebRTC signaling
-    socket.on("callUser", ({ userToCall, signalData, from }) => {
-        io.to(users[userToCall]).emit("incomingCall", { signal: signalData, from });
-    });
-
-    socket.on("answerCall", (data) => {
-        io.to(users[data.to]).emit("callAccepted", data.signal);
-    });
-
+    // ✅ Handle disconnect
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
         delete users[socket.userId];
     });
 });
+
 
 // Use Render’s port
 const PORT = process.env.PORT || 3000;
